@@ -304,8 +304,7 @@ public class FlexArray
     }
 
     /// <summary>
-    /// Remove a value at the given index,
-    /// shifting later values back
+    /// Remove a value at the given index, shifting later values back
     /// </summary>
     public void DeleteAt(int index)
     {

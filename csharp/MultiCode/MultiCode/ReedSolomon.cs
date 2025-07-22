@@ -9,8 +9,7 @@ namespace MultiCode;
 internal static class ReedSolomon
 {
     /// <summary>
-    /// Find locations of symbols that do not match
-    /// the Reed-Solomon polynomial
+    /// Find locations of symbols that do not match the Reed-Solomon polynomial
     /// </summary>
     public static FlexArray CalcSyndromes(FlexArray msg, int sym) {
         var syndromes = FlexArray.BySize(sym + 1);

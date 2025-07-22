@@ -111,8 +111,7 @@ internal static class Galois16
     }
 
     /// <summary>
-    /// Evaluate polynomial 'p' for value 'x',
-    /// resulting in a scalar
+    /// Evaluate polynomial 'p' for value 'x', resulting in a scalar
     /// </summary>
     public static int EvalPoly(FlexArray p, int x) {
         var y = p.Get(0);
@@ -123,8 +122,7 @@ internal static class Galois16
     }
 
     /// <summary>
-    /// Generate an irreducible polynomial for use
-    /// in Reed-Solomon codes
+    /// Generate an irreducible polynomial for use in Reed-Solomon codes
     /// </summary>
     public static FlexArray IrreduciblePoly(int symCount)
     {

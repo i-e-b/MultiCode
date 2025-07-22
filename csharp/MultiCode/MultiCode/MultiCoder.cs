@@ -55,11 +55,13 @@ public static class MultiCoder
 
         if (cleanInput.Length() < expectedCodeLength) // Input too short
         {
+            cleanInput.Release();
             return [];
         }
 
         if (cleanInput.Length() > expectedCodeLength) // Input too long
         {
+            cleanInput.Release();
             return [];
         }
 
@@ -69,7 +71,7 @@ public static class MultiCoder
 
         if (decoded.Ok)
         {
-            // remove recovery data
+            // remove error correction symbols
             for (var i = 0; i < correctionSymbols; i++) decoded.Result?.Pop();
 
             // decoded data is nybbles, convert back to bytes
@@ -443,7 +445,7 @@ public static class MultiCoder
     /// Main decode and correct function
     /// </summary>
     /// <param name="msg">input symbols</param>
-    /// <param name="sym">additional check symbols in input</param>
+    /// <param name="sym">count of additional check symbols in input</param>
     /// <param name="expectedLength">expected length of input</param>
     private static DecodeResult RsDecode(FlexArray msg, int sym, int expectedLength)
     {
