@@ -1,17 +1,13 @@
-﻿// ReSharper disable ForCanBeConvertedToForeach
-// ReSharper disable LoopCanBeConvertedToQuery
+package com.ieb.multicode_demo.core;
 
-namespace MultiCode;
-
-/// <summary>
-/// Reed-Solomon FEC codes for multi-coder
-/// </summary>
-internal static class ReedSolomon
-{
-    /// <summary>
-    /// Find locations of symbols that do not match
-    /// the Reed-Solomon polynomial
-    /// </summary>
+/**
+ * Reed-Solomon FEC codes for multi-coder
+ */
+class ReedSolomon {
+    /**
+     * Find locations of symbols that do not match
+     * the Reed-Solomon polynomial
+     */
     public static FlexArray CalcSyndromes(FlexArray msg, int sym) {
         var syndromes = FlexArray.BySize(sym + 1);
         for (var i = 0; i < sym; i++) {
@@ -20,9 +16,9 @@ internal static class ReedSolomon
         return syndromes;
     }
 
-    /// <summary>
-    /// Build a polynomial to location errors in the message
-    /// </summary>
+    /**
+     * Build a polynomial to location errors in the message
+     */
     public static FlexArray ErrorLocatorPoly(FlexArray synd, int sym, int erases) {
         var errLoc = FlexArray.SingleOne();
         var oldLoc = FlexArray.SingleOne();
@@ -58,12 +54,12 @@ internal static class ReedSolomon
         return errLoc;
     }
 
-    /// <summary>
-    /// Find error locations
-    /// </summary>
+    /**
+     * Find error locations
+     */
     public static FlexArray FindErrors(FlexArray locPoly, int len) {
         var errs = locPoly.Length() - 1;
-        var pos  = FlexArray.BySize(0);
+        var pos = FlexArray.BySize(0);
 
         for (int i = 0; i < len; i++) {
             int test = Galois16.EvalPoly(locPoly, Galois16.Pow(2, i)) & 0x0f;
@@ -72,24 +68,22 @@ internal static class ReedSolomon
             }
         }
 
-        if (pos.Length() != errs)
-        {
+        if (pos.Length() != errs) {
             pos.Clear();
         }
 
         return pos;
     }
 
-    /// <summary>
-    /// Build polynomial to find data errors
-    /// </summary>
+    /**
+     * Build polynomial to find data errors
+     */
     private static FlexArray DataErrorLocatorPoly(FlexArray pos) {
         var eLoc = FlexArray.SingleOne();
-        var s1   = FlexArray.SingleOne();
+        var s1 = FlexArray.SingleOne();
         var pair = FlexArray.BySize(2);
 
-        for (var i = 0; i < pos.Length(); i++)
-        {
+        for (var i = 0; i < pos.Length(); i++) {
             pair.Clear();
             pair.Push(Galois16.Pow(2, pos.Get(i)));
             pair.Push(0);
@@ -107,12 +101,12 @@ internal static class ReedSolomon
         return eLoc;
     }
 
-    /// <summary>
-    /// Try to evaluate a data error
-    /// </summary>
+    /**
+     * Try to evaluate a data error
+     */
     private static FlexArray ErrorEvaluator(FlexArray synd, FlexArray errLoc, int n) {
         var poly = Galois16.MulPoly(synd, errLoc);
-        var len  = poly.Length() - (n + 1);
+        var len = poly.Length() - (n + 1);
         for (var i = 0; i < len; i++) {
             poly.Set(i, poly.Get(i + len));
         }
@@ -121,23 +115,23 @@ internal static class ReedSolomon
         return poly;
     }
 
-    /// <summary>
-    /// Try to correct errors in the message using the Forney algorithm
-    /// </summary>
+    /**
+     * Try to correct errors in the message using the Forney algorithm
+     */
     public static FlexArray CorrectErrors(FlexArray msg, FlexArray synd, FlexArray pos) {
-        var len      = msg.Length();
+        var len = msg.Length();
 
         var coeffPos = FlexArray.BySize(0);
-        var chi      = FlexArray.BySize(0);
-        var tmp      = FlexArray.BySize(0);
-        var e        = FlexArray.BySize(len);
+        var chi = FlexArray.BySize(0);
+        var tmp = FlexArray.BySize(0);
+        var e = FlexArray.BySize(len);
 
         synd.Reverse();
         for (var i = 0; i < pos.Length(); i++) {
             coeffPos.Push(len - 1 - pos.Get(i));
         }
 
-        var errLoc  = DataErrorLocatorPoly(coeffPos);
+        var errLoc = DataErrorLocatorPoly(coeffPos);
         var errEval = ErrorEvaluator(synd, errLoc, errLoc.Length() - 1);
 
         for (var i = 0; i < coeffPos.Length(); i++) {
@@ -162,7 +156,7 @@ internal static class ReedSolomon
             e.Set(pos.Get(i), Galois16.Div(y, prime));
         }
 
-        var final = Galois16.AddPoly(msg, e);
+        var finalResult = Galois16.AddPoly(msg, e);
 
         errEval.Release();
         errLoc.Release();
@@ -171,6 +165,6 @@ internal static class ReedSolomon
         chi.Release();
         coeffPos.Release();
 
-        return final;
+        return finalResult;
     }
 }

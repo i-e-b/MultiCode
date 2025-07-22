@@ -1,20 +1,17 @@
-﻿// ReSharper disable ForCanBeConvertedToForeach
-// ReSharper disable LoopCanBeConvertedToQuery
-namespace MultiCode;
+package com.ieb.multicode_demo.core;
 
-/// <summary>
-/// 16-entry Galois field math for Reed-Solomon (4-bit per symbol)
-/// </summary>
-internal static class Galois16
-{
-    private static readonly int[] _exp = new int[32];
-    private static readonly int[] _log = new int[16];
+/** 16-entry Galois field math for Reed-Solomon (4-bit per symbol) */
+class Galois16 {
+    private static boolean _created = false;
+    private static final int[] _exp = new int[32];
+    private static final int[] _log = new int[16];
 
-    private const int Prime = 19; // must be fixed across implementations!
+    private static final int Prime = 19; // must be fixed across implementations!
 
-    static Galois16()
+    private static synchronized void BuildTables()
     {
         var x = 1;
+        _created = true;
 
         for (var i = 0; i < 16; i++) {
             _exp[i] = x & 0x0f;
@@ -27,49 +24,55 @@ internal static class Galois16
         }
     }
 
-    /// <summary>
-    /// Add or Subtract: a +/- b
-    /// </summary>
+    /**
+     * Add or Subtract: a +/- b
+     */
     public static int AddSub(int a, int b)
     {
+        if (!_created) BuildTables();
         return (a ^ b) & 0x0f;
     }
 
-    /// <summary>
-    /// Multiply a and b
-    /// </summary>
+    /**
+     * Multiply a and b
+     */
     public static int Mul(int a, int b)
     {
+        if (!_created) BuildTables();
         if (a == 0 || b == 0) return 0;
         return _exp[(_log[a] + _log[b]) % 15];
     }
 
-    /// <summary>
-    /// Divide a by b
-    /// </summary>
+    /**
+     * Divide a by b
+     */
     public static int Div(int a, int b) {
+        if (!_created) BuildTables();
         if (a == 0 || b == 0) return 0;
         return _exp[(_log[a] + 15 - _log[b]) % 15];
     }
 
-    /// <summary>
-    /// Raise n to power of p
-    /// </summary>
+    /**
+     * Raise n to power of p
+     */
     public static int Pow(int n, int p) {
+        if (!_created) BuildTables();
         return _exp[(_log[n] * p) % 15];
     }
 
-    /// <summary>
-    /// Get multiplicative inverse of n
-    /// </summary>
+    /**
+     * Get multiplicative inverse of n
+     */
     public static int Inverse(int n) {
+        if (!_created) BuildTables();
         return _exp[15 - _log[n]];
     }
 
-    /// <summary>
-    /// Multiply a polynomial 'p' by a scalar 'sc'
-    /// </summary>
+    /**
+     * Multiply a polynomial 'p' by a scalar 'sc'
+     */
     public static FlexArray PolyMulScalar(FlexArray p, int sc) {
+        if (!_created) BuildTables();
         var res = FlexArray.BySize(p.Length());
         for (var i = 0; i < p.Length(); i++) {
             res.Set(i, Mul(p.Get(i), sc));
@@ -77,11 +80,12 @@ internal static class Galois16
         return res;
     }
 
-    /// <summary>
-    /// Add two polynomials
-    /// </summary>
+    /**
+     * Add two polynomials
+     */
     public static FlexArray AddPoly(FlexArray p, FlexArray q) {
-        var len = p.Length() >= q.Length() ? p.Length() : q.Length();
+        if (!_created) BuildTables();
+        var len = Math.max(p.Length(), q.Length());
         var res = FlexArray.BySize(len);
         for (var i = 0; i < p.Length(); i++)
         {
@@ -96,10 +100,11 @@ internal static class Galois16
         return res;
     }
 
-    /// <summary>
-    /// Multiply two polynomials
-    /// </summary>
+    /**
+     * Multiply two polynomials
+     */
     public static FlexArray MulPoly(FlexArray p, FlexArray q) {
+        if (!_created) BuildTables();
         var res = FlexArray.BySize(p.Length() + q.Length() - 1);
         for (var j = 0; j < q.Length(); j++) {
             for (var i = 0; i < p.Length(); i++) {
@@ -110,11 +115,12 @@ internal static class Galois16
         return res;
     }
 
-    /// <summary>
-    /// Evaluate polynomial 'p' for value 'x',
-    /// resulting in a scalar
-    /// </summary>
+    /**
+     * Evaluate polynomial 'p' for value 'x',
+     * resulting in a scalar
+     */
     public static int EvalPoly(FlexArray p, int x) {
+        if (!_created) BuildTables();
         var y = p.Get(0);
         for (var i = 1; i < p.Length(); i++) {
             y = Mul(y, x) ^ p.Get(i);
@@ -122,12 +128,13 @@ internal static class Galois16
         return y & 0x0f;
     }
 
-    /// <summary>
-    /// Generate an irreducible polynomial for use
-    /// in Reed-Solomon codes
-    /// </summary>
+    /**
+     * Generate an irreducible polynomial for use
+     * in Reed-Solomon codes
+     */
     public static FlexArray IrreduciblePoly(int symCount)
     {
+        if (!_created) BuildTables();
         var gen = FlexArray.SingleOne();
 
         var next = FlexArray.Pair(1, 1);

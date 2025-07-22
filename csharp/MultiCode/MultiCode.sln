@@ -4,6 +4,13 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MultiCode", "MultiCode\Mult
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MultiCodeTests", "MultiCodeTests\MultiCodeTests.csproj", "{8DFF6AD8-B17C-481B-B427-144A39EF0526}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_info", "_info", "{BB82A6A0-0225-4BF9-A773-7A3FB8A385B2}"
+	ProjectSection(SolutionItems) = preProject
+		..\..\.gitignore = ..\..\.gitignore
+		..\..\LICENSE = ..\..\LICENSE
+		..\..\README.md = ..\..\README.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

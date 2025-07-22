@@ -1,29 +1,25 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using System.Text;
+package com.ieb.multicode_demo.core;
 
-// ReSharper disable ForCanBeConvertedToForeach
-// ReSharper disable LoopCanBeConvertedToQuery
+/**
+ * Encode and Decode multi-code strings
+ * @noinspection ForLoopReplaceableByForEach
+ */
+public class MultiCoder {
 
-namespace MultiCode;
-
-/// <summary>
-/// Encode and Decode multi-code strings
-/// </summary>
-public static class MultiCoder
-{
-    /// <summary>
-    /// Encode binary data to a multi-code string
-    /// </summary>
-    /// <param name="data">original data to encode</param>
-    /// <param name="correctionSymbols">number of extra symbols to add for error recovery</param>
-    public static string Encode(byte[] data, int correctionSymbols)
+    /**
+     * Encode binary data to a multi-code string
+     * @param data original data to encode
+     * @param correctionSymbols number of extra symbols to add for error recovery
+     * @return String for end-user consumption
+     */
+    public static String Encode(byte[] data, int correctionSymbols)
     {
         // Convert from bytes to nybbles
-        var src = FlexArray.Fixed(data.Length * 2);
+        var src = FlexArray.Fixed(data.length * 2);
         int j   = 0;
-        for (int i = 0; i < data.Length; i++)
+        for (int i = 0; i < data.length; i++)
         {
-            var upper = (data[i] >> 4) & 0x0F;
+            var upper = (data[i] >>> 4) & 0x0F;
             var lower = data[i] & 0x0F;
 
             src.Set(j++, upper);
@@ -40,13 +36,14 @@ public static class MultiCoder
         return output;
     }
 
-    /// <summary>
-    /// Decode a multi-code string to binary data
-    /// </summary>
-    /// <param name="code">user input: encoded data to restore</param>
-    /// <param name="dataLength">expected length of data in bytes, excluding correction symbols</param>
-    /// <param name="correctionSymbols">number of extra bytes added to original data</param>
-    public static byte[] Decode(string code, int dataLength, int correctionSymbols)
+    /**
+     * Decode a multi-code string to binary data
+     * @param code user input: encoded data to restore
+     * @param dataLength expected length of data in bytes, excluding correction symbols
+     * @param correctionSymbols number of extra bytes added to original data<
+     * @return recovered data, or empty array
+     */
+    public static byte[] Decode(String code, int dataLength, int correctionSymbols)
     {
         var transposes = FlexArray.BySize(0);
 
@@ -55,12 +52,12 @@ public static class MultiCoder
 
         if (cleanInput.Length() < expectedCodeLength) // Input too short
         {
-            return [];
+            return new byte[0];
         }
 
         if (cleanInput.Length() > expectedCodeLength) // Input too long
         {
-            return [];
+            return new byte[0];
         }
 
         transposes.Release();
@@ -70,41 +67,40 @@ public static class MultiCoder
         if (decoded.Ok)
         {
             // remove recovery data
-            for (var i = 0; i < correctionSymbols; i++) decoded.Result?.Pop();
+            for (var i = 0; i < correctionSymbols; i++) decoded.Result.Pop();
 
             // decoded data is nybbles, convert back to bytes
-            var final = new byte[(decoded.Result?.Length()??0) / 2];
-            for (int i = 0; i < final.Length; i++)
+            var finalData = new byte[decoded.Result.Length() / 2];
+            for (int i = 0; i < finalData.length; i++)
             {
-                var upper = (decoded.Result?.PopFirst()??0) << 4;
-                var lower = decoded.Result?.PopFirst()??0;
-                final[i] = (byte)(upper + lower);
+                var upper = decoded.Result.PopFirst() << 4;
+                var lower = decoded.Result.PopFirst();
+                finalData[i] = (byte)(upper + lower);
             }
             cleanInput.Release();
             if (decoded.Result != cleanInput) decoded.Release();
-            return final;
+            return finalData;
         }
 
         cleanInput.Release();
         if (decoded.Result != cleanInput) decoded.Release();
-        return [];
+        return new byte[0];
     }
 
-    #region Code parameters
 
     // Note: '~' is for error.
     // Q and S are lower cased to look less like 0 and 5.
 
-    /// <summary> Characters for odd-positioned output codes </summary>
-    private static readonly char[] OddSet = ['0', '1', '2', '3', '6', '7', '8', '9', 'b', 'G', 'J', 'N', 'q', 'X', 'Y', 'Z', '~'];
+    /** Characters for odd-positioned output codes */
+    private static final char[] OddSet = new char[] {'0', '1', '2', '3', '6', '7', '8', '9', 'b', 'G', 'J', 'N', 'q', 'X', 'Y', 'Z', '~'};
 
-    /// <summary> Characters for even-positioned output codes  </summary>
-    private static readonly char[] EvenSet = ['4', '5', 'A', 'C', 'D', 'E', 'F', 'H', 'K', 'M', 'P', 'R', 's', 'T', 'V', 'W', '~'];
+    /** <summary> Characters for even-positioned output codes */
+    private static final char[] EvenSet = new char[] {'4', '5', 'A', 'C', 'D', 'E', 'F', 'H', 'K', 'M', 'P', 'R', 's', 'T', 'V', 'W', '~'};
 
-    /// <summary>
-    /// Look up characters likely to be entered as spaces. These will be trimmed from input
-    /// </summary>
-    private static bool IsSpace(char c)
+    /**
+     * Look up characters likely to be entered as spaces. These will be trimmed from input
+     */
+    private static boolean IsSpace(char c)
     {
         switch (c)
         {
@@ -120,20 +116,21 @@ public static class MultiCoder
         }
     }
 
-    /// <summary> Likely mistakes. Mapped to characters we guess are correct </summary>
+    /** Likely mistakes. Mapped to characters we guess are correct */
     private static char Correction(char inp)
     {
         switch (inp)
         {
             case 'O': return '0';
-            case 'L': return '1';
-            case 'I': return '1';
+            case 'L':
+            case 'I':
+                return '1';
             case 'U': return 'V';
             default: return inp;
         }
     }
 
-    /// <summary> Case changes to improve letter/number distinction </summary>
+    /** Case changes to improve letter/number distinction */
     private static char CaseChanges(char inp)
     {
         switch (inp)
@@ -145,16 +142,12 @@ public static class MultiCoder
         }
     }
 
-    #endregion Code parameters
-
-    #region Internal
-
-    /// <summary>
-    /// Find index in char array, or -1 if not found
-    /// </summary>
+    /**
+     * Find index in char array, or -1 if not found
+     */
     private static int IndexOf(char[] src, char target)
     {
-        for (int i = 0; i < src.Length; i++)
+        for (int i = 0; i < src.length; i++)
         {
             if (src[i] == target) return i;
         }
@@ -162,9 +155,9 @@ public static class MultiCoder
         return -1;
     }
 
-    /// <summary>
-    /// Message value, and message output position to encoded character
-    /// </summary>
+    /**
+     * Message value, and message output position to encoded character
+     */
     private static char EncodeDisplay(int number, int position)
     {
         if (number < 0 || number > 15) return '~';
@@ -172,29 +165,29 @@ public static class MultiCoder
         return EvenSet[number];
     }
 
-    /// <summary>
-    /// Create an output string for message data
-    /// </summary>
-    private static string Display(FlexArray message)
+    /**
+     * Create an output string for message data
+     */
+    private static String Display(FlexArray message)
     {
         var sb = new StringBuilder();
         for (int i = 0; i < message.Length(); i++)
         {
             if (i > 0)
             {
-                if (i % 4 == 0) sb.Append('-');
-                else if (i % 2 == 0) sb.Append(' ');
+                if (i % 4 == 0) sb.append('-');
+                else if (i % 2 == 0) sb.append(' ');
             }
 
-            sb.Append(EncodeDisplay(message.Get(i), i));
+            sb.append(EncodeDisplay(message.Get(i), i));
         }
 
-        return sb.ToString();
+        return sb.toString();
     }
 
-    /// <summary>
-    /// Find first position where chirality is incorrect
-    /// </summary>
+    /**
+     * Find first position where chirality is incorrect
+     */
     private static int FindFirstChiralityError(FlexArray chirality)
     {
         for (var position = 0; position < chirality.Length(); position++)
@@ -206,15 +199,14 @@ public static class MultiCoder
         return -1;
     }
 
-    private static bool RepairCodesAndChirality(int expectedCodeLength,
-        FlexArray codes, FlexArray chirality, FlexArray transposes)
+    private static boolean RepairCodesAndChirality(int expectedCodeLength,
+                                                FlexArray codes, FlexArray chirality, FlexArray transposes)
     {
-        const bool tryAgain  = false;
-        const bool completed = true;
+        final boolean tryAgain  = false;
+        final boolean completed = true;
 
         if (codes.Length() != chirality.Length())
         {
-            // ERROR in code/chirality code
             return completed; // can't do much here
         }
 
@@ -271,7 +263,6 @@ public static class MultiCoder
         // If input is longer than expected, guess where the problem is and delete
         if (currentLength > expectedCodeLength)
         {
-
             // First, if the last code is bad chirality, delete that before anything else
             var expectedLastChi = (1 + expectedCodeLength) & 1;
             if (chirality.Get(currentLength - 1) != expectedLastChi)
@@ -316,7 +307,7 @@ public static class MultiCoder
         return tryAgain;
     }
 
-    private static FlexArray DecodeDisplay(int expectedCodeLength, string input, FlexArray transposes)
+    private static FlexArray DecodeDisplay(int expectedCodeLength, String input, FlexArray transposes)
     {
         var codes          = FlexArray.BySize(0);
         var chirality      = FlexArray.BySize(0);
@@ -324,9 +315,9 @@ public static class MultiCoder
 
         // Run filters first, to get the number of 'correct' characters.
         // We could extend this to store the location of unexpected chars to improve the next loop.
-        for (var i = 0; i < input.Length; i++)
+        for (var i = 0; i < input.length(); i++)
         {
-            var src = char.ToUpperInvariant(input[i]);
+            var src = Character.toUpperCase(input.charAt(i));
             if (IsSpace(src)) continue; // skip spaces
             src = CaseChanges(src); // Q->q, S->s, B->b
 
@@ -339,9 +330,9 @@ public static class MultiCoder
         var charCountMismatch = expectedCodeLength - validCharCount;
 
         var nextChir = 0;
-        for (var i = 0; i < input.Length; i++)
+        for (var i = 0; i < input.length(); i++)
         {
-            var src = char.ToUpperInvariant(input[i]); // make upper-case
+            var src = Character.toUpperCase(input.charAt(i)); // make upper-case
 
             if (IsSpace(src)) continue; // skip spaces
 
@@ -400,11 +391,12 @@ public static class MultiCoder
         return codes;
     }
 
-    /// <summary>
-    /// Main RS encode.
-    /// </summary>
-    /// <param name="msg">array of ints in 0..15</param>
-    /// <param name="sym">number of additional symbols</param>
+    /**
+     * Main RS encode
+     * @param msg array of ints in 0..15
+     * @param sym number of additional symbols
+     * @return flex array of encoded symbols
+     */
     private static FlexArray RsEncode(FlexArray msg, int sym)
     {
         var gen = Galois16.IrreduciblePoly(sym);
@@ -447,19 +439,17 @@ public static class MultiCoder
     /// <param name="expectedLength">expected length of input</param>
     private static DecodeResult RsDecode(FlexArray msg, int sym, int expectedLength)
     {
-        var result = new DecodeResult
-        {
-            Ok = false,
-            Errs = false,
-            Result = msg.Copy(),
-            Info = ""
-        };
+        var result = new DecodeResult();
+        result.Ok = false;
+        result.Errs = false;
+        result.Result = msg.Copy();
+        result.Info = "";
 
         var erases = expectedLength - msg.Length();
         var synd   = ReedSolomon.CalcSyndromes(msg, sym);
         if (synd.AllZero())
         {
-            //log('no errors found');
+            // no errors found
             result.Ok = true;
             synd.Release();
             return result;
@@ -499,7 +489,7 @@ public static class MultiCoder
         var synd2 = ReedSolomon.CalcSyndromes(result.Result, sym);
         if (synd2.AllZero())
         {
-            //log('all errors corrected');
+            // all errors corrected
             synd2.Release();
             result.Ok = true;
             result.Errs = true;
@@ -570,25 +560,23 @@ public static class MultiCoder
         return basicDecode;
     }
 
-    /// <summary>
-    /// Result from RsDecode
-    /// </summary>
-    [SuppressMessage("ReSharper", "UnusedAutoPropertyAccessor.Global")]
-    internal class DecodeResult
+    /**
+     * Result from RsDecode
+     */
+    static class DecodeResult
     {
-        public bool Ok { get; set; }
-        public bool Errs { get; set; }
-        public FlexArray? Result { get; set; }
-        public string Info { get; set; } = "";
+        public boolean Ok;
+        public boolean Errs;
+        public FlexArray Result;
+        public String Info = "";
 
-        /// <summary>
-        /// Release result if there is one
-        /// </summary>
+        /**
+         * Release result if there is one
+         */
         public void Release()
         {
-            Result?.Release();
+            if (Result != null) Result.Release();
         }
     }
 
-    #endregion Internal
 }
