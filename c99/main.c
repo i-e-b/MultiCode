@@ -3,7 +3,7 @@
 #include "MultiCode.h"
 
 int main(void) {
-    uint64_t data = 0xBEEFfeedFACEf00dUL;
+    uint64_t data = 0xBEEFfeedFACEf00dUL; // TODO: fix endian issue here
     printf("\r\nOriginal data: %llx", data);
 
     char* code = MultiCode_Encode(&data, 8, 6);
@@ -17,7 +17,7 @@ int main(void) {
     } else {
         printf("\r\nRecovered: ");
         for (int i = 0; i < 8; ++i) {
-            printf("%2x", recovered[i]);
+            printf("%.2x ", recovered[i] & 0xFF);
         }
     }
 

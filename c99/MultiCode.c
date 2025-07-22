@@ -1010,6 +1010,7 @@ FlexArray mc_DecodeDisplay(int expectedCodeLength, const char* input, FlexArray 
     if (input == NULL || expectedCodeLength < 1) return NULL;
     int validCharCount = 0;
     int safetyLimit    = expectedCodeLength * 4;
+    char upperCase = 'a' - 'A';
 
     // Run filters first, to get the number of 'correct' characters.
     // We could extend this to store the location of unexpected chars to improve the next loop.
@@ -1019,8 +1020,10 @@ FlexArray mc_DecodeDisplay(int expectedCodeLength, const char* input, FlexArray 
             inputLength = i;
             break;
         }
-        char src = (char) (input[i] & 0xDF);
+        char src = input[i];
         if (mc_IsSpace(src)) continue; // skip spaces
+
+        if (src >= 'a') src = (char)(src-upperCase);
         src = mc_CaseChanges(src); // Q->q, S->s, B->b
 
         int oddIdx  = mc_IndexOf(OddSet, src);
@@ -1044,10 +1047,10 @@ FlexArray mc_DecodeDisplay(int expectedCodeLength, const char* input, FlexArray 
 
     int nextChir = 0;
     for (int i = 0; i < inputLength; i++) {
-        char src = (char) (input[i] & 0xDF);
-
+        char src = input[i];
         if (mc_IsSpace(src)) continue; // skip spaces
 
+        if (src >= 'a') src = (char)(src-upperCase);
         src = mc_CaseChanges(src); // Q->q, S->s, B->b
         src = mc_Correction(src); // fix for anticipated transcription errors
 
