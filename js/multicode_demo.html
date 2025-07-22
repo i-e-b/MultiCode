@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Multi-coding for user account numbers - JSFiddle - Code Playground</title>
+    <meta charset="utf-8">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-touch-fullscreen" content="yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1">    
+    <style type="text/css">
+	</style>
+  </head>
+
+  <body>
+  <h1>Multi-coding for User Account Numbers</h1>
+
+<button id="reRoll">New random Tag ID</button><br/>
+<br/>
+Tag ID: <input type="text" id="hexTagId" value="?"/><br/>
+Tag Code: <code id="displayedCode">?</code><br/>
+User input: <input type="text" id="userInput" value="?"/>
+<button id="checkBtn">Check</button>
+<button id="resetBtn">Reset</button><br/>
+<br/>
+Result: <code id="resultCode">?</code><br/>
+
+<h2>Design</h2>
+<p>
+  This assumes a fixed-length ID number, initially encoded as hex;
+  plus <span id="infoCD">?</span> additional check codes.
+</p>
+
+<p>
+  Before passing to a FEC (in this case, Reed-Solomon), we look for 
+  patterns in the input, and try to correct for them, increasing the chance
+  of the FEC successfully correcting the input.
+</p>
+
+<p>
+  Start with 32 characters, from the ASCII alpha-numeric set with indistict glyphs <code>OLIU</code> removed,
+  then split into an 'odd' and 'even' set, resulting in 16 characters in each set (for 4 bit grouping)
+  <pre>
+ 0 1 2 3 6 7 8 9 b G J N q X Y Z
+4 5 A C D E F H K M P R s T V W
+  </pre>
+  <code>S</code>, <code>Q</code>, and <code>B</code> are presented as lower case
+  to prevent confusion with <code>5</code>, <code>0</code>, and <code>8</code>.
+  As no pair of even or odd characters will be next to each other, we can optimise population of these
+  sets to reduce the chance of accidental obscenity. The likelyhood of accidental word forming is already
+  quite low with this set.
+</p>
+
+<p>
+  Generated should be alternating between the two sets.
+  We know if an input has mistakes if it is not following this alternation.
+  This has a short-coming that we can't tell the difference between pairs of deleted characters
+  at the start or end of the input. We try rotating the input during the Reed-Solomon step,
+  to the limit of deleted characters.
+  We could try having fixed guard codes at the start and end.
+</p>
+
+
+<h2>Error Examples</h2>
+<table>
+  <tr>
+    <td></td>
+    <td><code></code></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td></td>
+    <td><code>oeo-eoe-oeo</code></td>
+    <td>-- odd-even pattern is correct, length is correct</td>
+  </tr>
+  <tr>
+    <td>Real input:</td>
+    <td><code>7MQ-6DJ-S01</code></td>
+    <td></td>
+  </tr>
+  <tr><td>&nbsp;</td></tr>
+  <tr>
+    <td></td>
+    <td><code><span style="color:red;">_eo-eoe-oeo</span></code></td>
+    <td>-- pattern is inverted. First char missing, put in placeholder for Reed-Solomon</td>
+  </tr>
+  <tr>
+    <td>Deleted first char:</td>
+    <td><code><span style="color:red;">_</span>MQ-6DJ-S01</code></td>
+    <td></td>
+  </tr>
+  <tr><td>&nbsp;</td></tr>
+  <tr>
+    <td></td>
+    <td><code>oe<span style="color:red;">o-_o</span>e-oeo</code></td>
+    <td>-- "ee" or "oo" around deletion point</td>
+  </tr>
+  <tr>
+    <td>Deleted middle char:</td>
+    <td><code>7MQ-<span style="color:red;">_</span>DJ-S01</code></td>
+    <td></td>
+  </tr>
+  <tr><td>&nbsp;</td></tr>
+  <tr>
+    <td></td>
+    <td><code>oeo-eoe-oe<span style="color:red;">_</span></code></td>
+    <td>-- all correct, but wrong length</td>
+  </tr>
+  <tr>
+    <td>Deleted end char:</td>
+    <td><code>7MQ-6DJ-S0<span style="color:red;">_</span></code></td>
+    <td></td>
+  </tr>
+  <tr><td>&nbsp;</td></tr>
+  <tr>
+    <td></td>
+    <td><code>oeo-<span style="color:red;">eeo-o</span>eo</code></td>
+    <td>-- "eeoo" one before transposition</td>
+  </tr>
+  <tr>
+    <td>Transposed char:</td>
+    <td><code>7MQ-6<span style="color:red;">JD</span>-S01</code></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td></td>
+    <td><code>oe<span style="color:red;">o-oee</span>-oeo</code></td>
+    <td>-- "ooee" one before transposition</td>
+  </tr>
+  <tr>
+    <td></td>
+    <td><code>7MQ-<span style="color:red;">D6</span>J-S01</code></td>
+    <td></td>
+  </tr>
+  <tr><td>&nbsp;</td></tr>
+  <tr>
+    <td></td>
+    <td><code>oeo-<span style="color:red;">eeo-eoo</span></code></td>
+    <td>-- "ee" at start, "oo" at end</td>
+  </tr>
+  <tr>
+    <td>Double transposed:</td>
+    <td><code>7MQ-6<span style="color:red;">JD-0S</span>1</code></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td></td>
+    <td><code>oe<span style="color:red;">o-oeo-ee</span>o</code></td>
+    <td>-- "oo" at start, "ee" at end</td>
+  </tr>
+  <tr>
+    <td></td>
+    <td><code>7MQ-<span style="color:red;">D6S-J</span>01</code></td>
+    <td></td>
+  </tr>
+  <tr><td>&nbsp;</td></tr>
+  <tr>
+    <td></td>
+    <td><code>oeo-eo<span style="color:red;">o</span>e-oeo</code></td>
+    <td>-- too long. Error at first repeated o/e</td>
+  </tr>
+  <tr>
+    <td>Insertion:</td>
+    <td><code>7MQ-6D<span style="color:red;">D</span>J-S01</code></td>
+    <td></td>
+  </tr>
+</table>
+
+<h3>Decoding Log</h3>
+<pre id="outp" style="display:block;height:20em;overflow:scroll;"></pre>
+  </body>
+  
+  <script>
+  'strict';
+
+/* Settings */
+const extraCodes = 6; // increase for longer, but more resilient codes
+const expectedCodeLength = extraCodes + 8; // 8 bytes of original code
+const tryReallyHard = true; // try rotations in the Reed-Solomon decoder. Slower, and might increase incorrect acceptance.
+
+// Odd and even sets of display characters. Note: '~' is for error.
+// Q and S are lower cased to look less like 0 and 5.
+const oddSet    = ['0','1','2','3','6','7','8','9','b','G','J','N','q','X','Y','Z', '~'];
+const evenSet = ['4','5','A','C','D','E','F','H','K','M','P','R','s','T','V','W','~'];
+// Characters likely to be entered as spaces. These will be trimmed from input
+const spaces = [' ', '-', '.', '·', '_', '+', '*', '#'];
+// Likely mistakes. Map these inputs to corrected characters:
+const correction = { O: '0', L: '1', I: '1', U: 'V' };
+// Case changes to improve letter/number distinction:
+const caseChanges = { B: 'b', Q: 'q', S: 's' };
+
+
+/* UI */
+function clearLog() {
+  document.getElementById('outp').innerText = '';
+}
+function log(msg) {
+  document.getElementById('outp').innerText += msg + '\r\n';
+}
+function setCode(c) {
+  document.getElementById('displayedCode').innerText = c.join('');
+}
+function setTagId(c) {
+  document.getElementById('hexTagId').value = '' + c;
+}
+function getTagId() {
+  return document.getElementById('hexTagId').value;
+}
+function setResult(msg) {
+  document.getElementById('resultCode').innerText = msg;
+}
+function getInput() {
+  return document.getElementById('userInput').value.split('');
+}
+function copyCodeToInput() {
+  document.getElementById('userInput').value =
+    document.getElementById('displayedCode').innerText;
+}
+
+/* GF 16 --> */
+let gf_table = null;
+
+function gfTable() {
+  if (gf_table) return gf_table;
+  gf_table = {
+    exp: Array(32).fill(0),
+    log: Array(16).fill(0),
+  };
+  let x = 1;
+  let prim = 19; // critical to get this right!
+
+  for (let i = 0; i < 16; i++) {
+    gf_table.exp[i] = x & 0x0f;
+    gf_table.log[x] = i & 0x0f;
+    x <<= 1;
+    if ((x & 0x110) != 0) x ^= prim;
+    x &= 0x0f;
+  }
+  for (let i = 15; i < 32; i++) {
+    gf_table.exp[i] = gf_table.exp[i - 15] & 0x0f;
+  }
+  return gf_table;
+}
+
+function gfAddSub(a, b) {
+  return (a ^ b) & 0x0f;
+} // add and subtract are same in GF256
+
+function gfMul(a, b) {
+  if (a === 0 || b === 0) return 0;
+  let gf = gfTable();
+  return gf.exp[(gf.log[a] + gf.log[b]) % 15];
+}
+
+function gfDiv(a, b) {
+  if (a === 0 || b === 0) return 0;
+  let gf = gfTable();
+  return gf.exp[(gf.log[a] + 15 - gf.log[b]) % 15];
+}
+
+function gfPow(n, p) {
+  let gf = gfTable();
+  return gf.exp[(gf.log[n] * p) % 15];
+}
+
+function gfInverse(n) {
+  let gf = gfTable();
+  return gf.exp[15 - gf.log[n]];
+}
+
+function gfPolyMulScalar(p, sc) {
+  // coeff array, scalar
+  let res = Array(p.length).fill(0);
+  for (let i = 0; i < p.length; i++) {
+    res[i] = gfMul(p[i], sc);
+  }
+  return res;
+}
+
+function gfAddPoly(p, q) {
+  // add two polynomials
+  let len = p.length >= q.length ? p.length : q.length;
+  let res = Array(len).fill(0);
+  for (let i = 0; i < p.length; i++) {
+    res[i + len - p.length] = p[i];
+  }
+  for (let i = 0; i < q.length; i++) {
+    res[i + len - q.length] ^= q[i];
+  }
+  return res;
+}
+
+function gfMulPoly(p, q) {
+  // multiply two polynomials
+  let res = Array(p.length + q.length - 1).fill(0);
+  for (let j = 0; j < q.length; j++) {
+    for (let i = 0; i < p.length; i++) {
+      res[i + j] = gfAddSub(res[i + j], gfMul(p[i], q[j]));
+    }
+  }
+  return res;
+}
+
+function gfEvalPoly(p, x) {
+  // evaluate polynomial 'p' for value 'x', resulting in scalar
+  let y = p[0];
+  for (let i = 1; i < p.length; i++) {
+    y = gfMul(y, x) ^ p[i];
+  }
+  return y & 0x0f;
+}
+
+function gfIrreduciblePoly(symCount) {
+  let gen = [1];
+  for (let i = 0; i < symCount; i++) {
+    gen = gfMulPoly(gen, [1, gfPow(2, i)]);
+  }
+  return gen;
+}
+/* <-- GF 16 */
+
+/* Reed-Solomon error correction --> */
+function removeLeadingZeros(arr) {
+  let outp = [];
+  let latch = false;
+  for (let i = 0; i < arr.length; i++) {
+    if (!latch && arr[i] === 0) continue;
+    latch = true;
+    outp.push(arr[i]);
+  }
+  return outp;
+}
+
+function allZeros(arr) {
+  for (let i = 0; i < arr.length; i++) {
+    if (arr[i] !== 0) return false;
+  }
+  return true;
+}
+
+function rsCalcSyndromes(msg, sym) {
+  let synd = Array(sym + 1).fill(0); // with leading zero
+  for (let i = 0; i < sym; i++) {
+    synd[i + 1] = gfEvalPoly(msg, gfPow(2, i));
+  }
+  return synd;
+}
+
+function rsErrorLocatorPoly(synd, sym, erases) {
+  let errLoc = [1];
+  let oldLoc = [1];
+
+  let syndShift = 0;
+  if (synd.length > sym) syndShift = synd.length - sym;
+
+  for (let i = 0; i < sym - erases; i++) {
+    let kappa = i + syndShift;
+    let delta = synd[kappa];
+    for (let j = 1; j < errLoc.length; j++) {
+      delta ^= gfMul(errLoc[errLoc.length - (j + 1)], synd[kappa - j]);
+    }
+    oldLoc.push(0);
+    if (delta !== 0) {
+      if (oldLoc.length > errLoc.length) {
+        let newLoc = gfPolyMulScalar(oldLoc, delta);
+        oldLoc = gfPolyMulScalar(errLoc, gfInverse(delta));
+        errLoc = newLoc;
+      }
+      let scale = gfPolyMulScalar(oldLoc, delta);
+      errLoc = gfAddPoly(errLoc, scale);
+    }
+  }
+
+  errLoc = removeLeadingZeros(errLoc);
+  let errCount = errLoc.length - 1;
+  if (errCount - erases > sym) return 'too many errors';
+
+  return errLoc;
+}
+
+function rsFindErrors(locPoly, len) {
+  let errs = locPoly.length - 1;
+  let pos = [];
+
+  for (let i = 0; i < len; i++) {
+    let test = gfEvalPoly(locPoly, gfPow(2, i)) & 0x0f;
+    if (test === 0) {
+      pos.push(len - 1 - i);
+    }
+  }
+  if (pos.length !== errs) return 'too many errors';
+
+  return pos;
+}
+
+function rsDataErrorLocatorPoly(pos) {
+  let eLoc = [1];
+  for (let i = 0; i < pos.length; i++) {
+    let add = gfAddPoly([1], [gfPow(2, pos[i]), 0]);
+    eLoc = gfMulPoly(eLoc, add);
+  }
+  return eLoc;
+}
+
+function rsErrorEvaluator(synd, errLoc, n) {
+  let poly = gfMulPoly(synd, errLoc);
+  let len = poly.length - (n + 1);
+  for (let i = 0; i < len; i++) {
+    poly[i] = poly[i + len];
+  }
+  poly.length = poly.length - len;
+  return poly;
+}
+
+function rsCorrectErrors(msg, synd, pos) {
+  // Forney algorithm
+  let len = msg.length;
+  let coeffPos = [];
+  let rSynd = synd.reverse();
+  for (let i = 0; i < pos.length; i++) {
+    coeffPos.push(len - 1 - pos[i]);
+  }
+
+  let errLoc = rsDataErrorLocatorPoly(coeffPos);
+  let errEval = rsErrorEvaluator(rSynd, errLoc, errLoc.length - 1);
+
+  let chi = [];
+  for (let i = 0; i < coeffPos.length; i++) {
+    chi.push(gfPow(2, coeffPos[i]));
+  }
+
+  let E = Array(len).fill(0);
+  for (let i = 0; i < chi.length; i++) {
+    let tmp = [];
+    let ichi = gfInverse(chi[i]);
+    for (let j = 0; j < chi.length; j++) {
+      if (i === j) continue;
+      tmp.push(gfAddSub(1, gfMul(ichi, chi[j])));
+    }
+
+    let prime = 1;
+    for (let k = 0; k < tmp.length; k++) {
+      prime = gfMul(prime, tmp[k]);
+    }
+
+    let y = gfEvalPoly(errEval, ichi);
+    y = gfMul(gfPow(chi[i], 1), y); // pow?
+    E[pos[i]] = gfDiv(y, prime);
+  }
+
+  msg = gfAddPoly(msg, E);
+  return msg;
+}
+/* <-- Reed-Solomon error correction */
+
+/* Data encode/decode --> */
+
+// Array of 0..15 values into a single 32-bit number
+function symbolsToNum(bytes) {
+  let src = [...bytes];
+  let accum = 0;
+
+  // eight sets of 4 bits
+  for (let i = 0; i < 8; i++) {
+    let x = 0 | src.shift();
+    accum = accum * 16 + x; // work around JS weirdness. Should be `accum = (accum<<4) | x`
+  }
+
+  return accum;
+}
+
+// A 32-bit number into array of 0..15 values
+function numToSymbols(num) {
+  let x = num;
+  let out = [];
+
+  // eight sets of 4 bit symbols
+  for (let i = 0; i < 8; i++) {
+    out.unshift(x & 0b1111);
+    x = Math.floor(x / 16); // work around JS weirdness. Should be `x >>= 4`
+  }
+
+  if (x !== 0) log(`Error in numToSymbols: ${x} remaining`);
+
+  return out;
+}
+
+// Map a 0..15 number and its position into its odd/even code
+function encodeDisplay(number, position) {
+  if (number < 0 || number > 15) return '~';
+  if ((position & 1) == 0) return oddSet[number];
+  return evenSet[number];
+}
+
+// Convert a list of symbol code points to a list of user-facing display characters.
+// We also add some spacing, with alternating space characters for better eye tracking.
+function display(list) {
+  let code = list.map(encodeDisplay).join('');
+  let outp = [];
+  for (let i = 0; i < code.length; i++) {
+    if (i > 0) {
+      if (i % 4 === 0) outp.push('-');
+      else if (i % 2 === 0) outp.push(' ');
+    }
+    outp.push(code[i]);
+  }
+  return outp;
+}
+
+// First position where chirality is wrong
+function findFirstChiralityError(chirality) {
+  for (let position = 0; position < chirality.length; position++) {
+    let expected = position & 1;
+    if (chirality[position] != expected) return position;
+  }
+  return -1;
+}
+
+// Test if user input is correct-looking;
+// If not, try to find and fix any simple input errors.
+// Error locations written to 'transposes' array.
+function repairCodesAndChirality(codes, chirality, transposes) {
+  const tryAgain = false;
+  const completed = true;
+
+  if (codes.length != chirality.length) {
+    log('ERROR in code/chirality code: length mismatch');
+    return completed; // can't do much here
+  }
+
+  let currentLength = codes.length;
+  let minLength = (2*expectedCodeLength) / 3;
+
+  if (currentLength < minLength) {
+    log('Code is too short to recover accurately');
+    return completed;
+  }
+
+  // Note: splice(start, deleteCount, insertItems...);
+
+  let firstErrPos = findFirstChiralityError(chirality);
+  if (currentLength == expectedCodeLength && firstErrPos < 0) {
+    log('Input codes seem correct');
+    return completed;
+  }
+
+  // If input is shorter than expected, guess where a deletion occured, and insert a zero-value.
+  if (currentLength < expectedCodeLength) {
+    log('Too short: ' + currentLength);
+
+    // Insert a zero value at error position, and inject correct chirality
+    if (firstErrPos < 0) {
+      // error is at the end
+      let chi = currentLength & 1;
+      let diff = expectedCodeLength - currentLength;
+      if (diff == 1 && chi != 1) {
+        // don't add a wrong chi at the end if we're off-by-one
+        log('adding 0 at start');
+        codes.unshift(0);
+        chirality.unshift(0);
+        if (transposes && transposes.push) transposes.push(0);
+      } else {
+        log('adding ' + chi + ' at end');
+        codes.push(0);
+        chirality.push(chi);
+        if (transposes && transposes.push) transposes.push(currentLength);
+      }
+    } else {
+      let chi = firstErrPos & 1;
+      log('adding ' + chi + ' before ' + firstErrPos);
+      codes.splice(firstErrPos, 0, 0);
+      chirality.splice(firstErrPos, 0, chi);
+      if (transposes && transposes.push) transposes.push(firstErrPos);
+    }
+
+    return tryAgain;
+  }
+
+  // If input is longer than expected, guess where the problem is and delete
+  if (currentLength > expectedCodeLength) {
+    log('Too long: ' + currentLength);
+
+    // First, if the last code is bad chirality, delete that before anything else
+    let expectedLastChi = (1+expectedCodeLength) & 1;
+    if (chirality[currentLength - 1] != expectedLastChi) {
+      log(`Duplicated last character? Expected ${expectedLastChi}, got ${chirality[currentLength - 1]}`);
+      codes.pop();
+      chirality.pop();
+      return tryAgain;
+    }
+
+    // value and chirality at error position
+    if (firstErrPos < 0) firstErrPos = currentLength - 1;
+    log('deleting at ' + firstErrPos);
+    codes.splice(firstErrPos, 1);
+    chirality.splice(firstErrPos, 1);
+
+    if (transposes && transposes.push) transposes.push(firstErrPos);
+    return tryAgain;
+  }
+
+  // Input is correct length, but we have swapped characters.
+  // Try swapping at first error, unless it is at the end.
+  if (firstErrPos >= expectedCodeLength - 1) {
+    log('Dangling chirality error');
+    return completed;
+  }
+
+  if (chirality[firstErrPos] == chirality[firstErrPos + 1]) {
+    // A simple swap won't fix this. Either a totally wrong code, or repeated insertions and deletions.
+    // For now, we will flip the chirality without changing anything so the checks can continue.
+
+    log('Invalid chirality pattern at ' + firstErrPos);
+    chirality[firstErrPos] = 1 - chirality[firstErrPos];
+
+    if (transposes && transposes.push) transposes.push(firstErrPos);
+    return tryAgain;
+  } else {
+    // swapping characters might fix the problem
+    log('Chirality error at ' + firstErrPos);
+    let t1 = codes[firstErrPos];
+    codes[firstErrPos] = codes[firstErrPos + 1];
+    codes[firstErrPos + 1] = t1;
+
+    let t2 = chirality[firstErrPos];
+    chirality[firstErrPos] = chirality[firstErrPos + 1];
+    chirality[firstErrPos + 1] = t2;
+
+    if (transposes && transposes.push) transposes.push(firstErrPos);
+    return tryAgain;
+  }
+
+  log('Logic error in repairCodesAndChirality');
+  return completed;
+}
+
+// Convert user input to symbol code point list.
+// Here we look for deletion/insertion/transposition errors and try to correct
+function decodeDisplay(input, transposes) {
+  let codes = [];
+  let chirality = [];
+  let validCharCount = 0;
+
+  // Run filters first, to get the number of 'correct' characters.
+  // We could extend this to store the location of unexpected chars to improve the next loop.
+  for (let i = 0; i < input.length; i++){
+    let src = input[i].toUpperCase(); // make upper-case
+    if (spaces.indexOf(src) >= 0) continue; // skip spaces
+    if (caseChanges[src]) src = caseChanges[src]; // Q->q, S->s, B->b
+    
+    let oddIdx = oddSet.indexOf(src);
+    let evenIdx = evenSet.indexOf(src);
+    if (oddIdx >= 0 || evenIdx >= 0) validCharCount++;
+  }
+
+  // negative = too many chars. Positive = too few.
+  let charCountMismatch = expectedCodeLength - validCharCount;
+  log(`Character mismatch count = ${charCountMismatch}`);
+
+  let nextChir = 0;
+  for (let i = 0; i < input.length; i++) {
+    let src = input[i].toUpperCase(); // make upper-case
+
+    if (spaces.indexOf(src) >= 0) continue; // skip spaces
+
+    if (caseChanges[src]) src = caseChanges[src]; // Q->q, S->s, B->b
+    if (correction[src]) src = correction[src]; // fix for anticipated transcription errors
+
+    let oddIdx = oddSet.indexOf(src);
+    let evenIdx = evenSet.indexOf(src);
+
+    if (oddIdx < 0 && evenIdx < 0) {
+      // Broken character, maybe insert dummy.
+      if (charCountMismatch > 0) {
+        codes.push(0);
+        chirality.push(nextChir);
+        nextChir = 1 - nextChir;
+        charCountMismatch--;
+        log(`Injected char. Mismatch count = ${charCountMismatch}`);
+      } else {
+        charCountMismatch++;
+        log(`Skipped char. Mismatch count = ${charCountMismatch}`);
+      }
+    } else if (oddIdx >= 0 && evenIdx >= 0) {
+      // Should never happen!
+      log('Invalid coding tables!');
+    } else if (oddIdx >= 0) {
+      codes.push(oddIdx);
+      chirality.push(0);
+      nextChir = 1;
+    } else {
+      codes.push(evenIdx);
+      chirality.push(1);
+      nextChir = 0;
+    }
+  }
+
+  log(`    codes = ${codes.toString()} -> ${display(codes).join('')}`);
+  log(`chirality = ${chirality.toString()}`);
+
+  for (let tries = 0; tries < 12; tries++) {
+    if (repairCodesAndChirality(codes, chirality, transposes)) {
+      log(`    codes = ${codes.toString()} -> ${display(codes).join('')}`);
+      log(`chirality = ${chirality.toString()}`);
+      return codes;
+    }
+
+    log(`    codes = ${codes.toString()} -> ${display(codes).join('')}`);
+    log(`chirality = ${chirality.toString()}`);
+  }
+
+  log('Did not fully repair input codes');
+
+  return codes;
+}
+/* <-- Data encode/decode */
+
+// Main encode function
+// msg should be array of ints in 0..15; sym is number of additional symbols
+function encode(msg, sym) {
+  let gen = gfIrreduciblePoly(sym);
+  let mix = Array(msg.length + gen.length - 1).fill(0);
+  for (let i = 0; i < msg.length; i++) {
+    mix[i] = msg[i];
+  }
+
+  for (let i = 0; i < msg.length; i++) {
+    let coeff = mix[i];
+    if (coeff === 0) continue;
+    for (let j = 1; j < gen.length; j++) {
+      mix[i + j] ^= gfMul(gen[j], coeff);
+    }
+  }
+
+  let outp = [];
+  for (let i = 0; i < msg.length + gen.length - 1; i++) outp.push(mix[i]);
+
+  for (let i = 0; i < msg.length; i++) {
+    outp[i] = msg[i];
+  }
+
+  return outp;
+}
+
+// Calls decode, potentially many times.
+// This is to handle the case of digit transposition
+// where we can reduce two errors to zero, or 3 to 1
+function tryHardDecode(msg, sym, expectedLength) {
+  let basicDecode = decode(msg, sym, expectedLength);
+  if (basicDecode.ok) return basicDecode;
+
+  if (tryReallyHard) {
+    // Normal decoding didn't work. Try rotations
+
+    let end = msg.length;
+    let half = end / 2;
+    let i = 0;
+    for (i = 0; i < half; i++) {
+      // rotate left until we run out of zeros
+      let r = msg.shift();
+      if (r != 0) {
+        msg.unshift(r);
+        break;
+      }
+      msg.push(r);
+
+      log('Trying left-rotation ' + (i + 1) + ': ' + msg.toString());
+      basicDecode = decode(msg, sym, expectedLength);
+      if (basicDecode.ok) return basicDecode;
+    }
+
+    // undo
+    while (i > 0) {
+      i--;
+      let r = msg.pop();
+      msg.unshift(r);
+    }
+
+    for (i = 0; i < half; i++) {
+      // rotate right until we run out of zeros
+      let r = msg.pop();
+      if (r != 0) {
+        msg.push(r);
+        break;
+      }
+      msg.unshift(r);
+
+      log('Trying right-rotation ' + (i + 1) + ': ' + msg.toString());
+      basicDecode = decode(msg, sym, expectedLength);
+      if (basicDecode.ok) return basicDecode;
+    }
+  }
+  return basicDecode;
+}
+
+// Main decode and correct function
+// msg should be the input code; sym is expected number of additional symbols;
+// expectedLength is the expected length of msg -- and should be >= msg.length;
+function decode(msg, sym, expectedLength) {
+  let result = {
+    ok: false,
+    errs: false,
+    result: msg,
+    info: '',
+  };
+  let erases = expectedLength - msg.length;
+  let synd = rsCalcSyndromes(msg, sym);
+  if (allZeros(synd)) {
+    log('no errors found');
+    result.ok = true;
+    return result;
+  }
+
+  let errPoly = rsErrorLocatorPoly(synd, sym, erases);
+  if (typeof errPoly == 'string') {
+    result.errs = true;
+    result.info = 'too many errors (A)';
+    return result;
+  }
+
+  errPoly.reverse();
+  let errorPositions = rsFindErrors(errPoly, msg.length);
+  if (typeof errorPositions == 'string') {
+    result.errs = true;
+    result.info = 'too many errors (B)';
+    return result;
+  }
+
+  errorPositions.reverse();
+  result.result = rsCorrectErrors(msg, synd, errorPositions);
+
+  // recheck result
+  let synd2 = rsCalcSyndromes(result.result, sym);
+  if (allZeros(synd2)) {
+    log('all errors corrected');
+    result.ok = true;
+    result.errs = true;
+    result.info = 'all errors corrected';
+    return result;
+  }
+
+  result.ok = false;
+  result.errs = true;
+  result.info = 'too many errors (C)';
+  return result;
+}
+
+/* ---------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------- */
+
+// Note:
+//  Using fully numeric decimal codes can quickly cause failure
+//  due to carry propagation, which causes damage to all bytes.
+//  So we split on 4 bit boundaries, and have user side symbols
+//  that are independent based on position.
+
+log('Reed solomon coding for Nybbles');
+log('Symbols on the range [0..15]\r\n');
+let sourceUniqueId = 0;
+let sourceDisplayCode = '';
+let orig = [];
+
+// 32 bits of data
+const maxTagId = 0xefffffff; // number of unique IDs possible
+const startTagId = 0x10000000; // an offset to prevent very small IDs
+// Note: the offset is not used for encoding.
+function newRandomTagId() {
+  sourceUniqueId = Math.floor(Math.random() * maxTagId + startTagId);
+  let tagIdStr = sourceUniqueId.toString(16).toUpperCase();
+  log(`Unique ID = ${sourceUniqueId} (0x${tagIdStr})`);
+  let sourceId = sourceUniqueId;
+  log(`Source ID = ${sourceId}  -> ${sourceId.toString(2)}`);
+  setTagId(tagIdStr);
+}
+
+function createCode() {
+  sourceUniqueId = parseInt(getTagId(), 16);
+  log(
+    `Unique ID = ${sourceUniqueId} (0x${sourceUniqueId.toString(16).toUpperCase()})`,
+  );
+  orig = numToSymbols(sourceUniqueId); // 1..9
+
+  log('');
+  log('message symbols = ' + orig.join(','));
+
+  // encode the original
+  let encoded = encode(orig, extraCodes); // 0..15
+
+  log('');
+
+  let displayedCode = display(encoded); // special
+  setCode(displayedCode);
+  sourceDisplayCode = displayedCode.join('');
+}
+
+function checkCode() {
+  clearLog();
+  setResult('Checking...');
+
+  let transposes = [];
+  let userInput = getInput();
+  let cleanInput = decodeDisplay(userInput, transposes); // 0..15
+  let transposeCount = transposes.length;
+  log('Final transposes = ' + JSON.stringify(transposes));
+
+  if (cleanInput.length < expectedCodeLength) {
+    setResult('Input too short');
+    return;
+  } else if (cleanInput.length > expectedCodeLength) {
+    log('input symbols    = ' + cleanInput.join(','));
+    setResult('Input too long');
+    return;
+  }
+
+  log('input symbols    = ' + cleanInput.join(','));
+  log('original symbols = ' + orig.join(','));
+
+  //{ok:false, errs:false, result:msg, info:""};
+  let decoded = tryHardDecode(cleanInput, extraCodes, cleanInput.length);
+  if (decoded.ok) {
+    let correctCode = display(decoded.result).join('');
+    log('\r\nexpected = ' + sourceDisplayCode);
+    log('decoded  = ' + display(decoded.result).join(''));
+
+    for (let i = 0; i < extraCodes; i++) decoded.result.pop(); // remove recovery data
+    log('trimmed = ' + decoded.result.join(','));
+    let recoveredId = symbolsToNum(decoded.result);
+    log('Recovered code = ' + recoveredId);
+    let recoveredUniqueId = recoveredId;
+    log(
+      `Recovered unique ID = ${recoveredUniqueId} -> ${recoveredUniqueId.toString(16)}`,
+    );
+    log(
+      `Original unique ID  = ${sourceUniqueId} -> ${sourceUniqueId.toString(16)}`,
+    );
+
+    let guessedTagId = recoveredUniqueId.toString(16).toUpperCase();
+
+    if (decoded.errs) {
+      if (recoveredUniqueId === sourceUniqueId) {
+        if (transposeCount < 1) {
+          setResult(`Accepted as ${correctCode} -> ${guessedTagId}`);
+        } else {
+          setResult(`Transpositions corrected, accepted as ${correctCode} -> ${guessedTagId}`);
+        }
+      } else {
+        setResult(
+          'Error correction found ' +
+            correctCode +
+            ', which is not the original',
+        );
+      }
+    } else {
+      if (recoveredUniqueId === sourceUniqueId) {
+        if (transposeCount < 1) {
+          setResult(`Input correct ${correctCode} -> ${guessedTagId}`);
+        } else {
+          setResult(`Transpositions corrected ${correctCode} -> ${guessedTagId}`);
+        }
+      } else {
+        setResult('Decode error after correction (found ' + correctCode + ')');
+      }
+    }
+  } else {
+    log(JSON.stringify(decoded));
+    setResult('Failure: ' + decoded.info);
+  }
+}
+
+document.getElementById('reRoll').onclick = function () {
+  newRandomTagId();
+  createCode();
+  copyCodeToInput();
+  checkCode();
+};
+document.getElementById('checkBtn').onclick = function () {
+  checkCode();
+};
+document.getElementById('resetBtn').onclick = function () {
+  copyCodeToInput();
+  checkCode();
+};
+document.getElementById('userInput').onkeyup = function () {
+  checkCode();
+};
+document.getElementById('hexTagId').onkeyup = function () {
+  createCode();
+  copyCodeToInput();
+  checkCode();
+};
+
+// Write extra codes info into document
+document.getElementById('infoCD').innerText = '' + extraCodes;
+
+// Initial set-up
+newRandomTagId();
+createCode();
+copyCodeToInput();
+checkCode();
+
+  </script>
+</html>
