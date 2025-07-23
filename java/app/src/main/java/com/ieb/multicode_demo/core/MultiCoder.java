@@ -251,7 +251,25 @@ public class MultiCoder {
             }
             else
             {
-                var chi = firstErrPos & 1;
+                var chi      = firstErrPos & 1;
+                var chiNext  = (firstErrPos + 1) & 1;
+                var chiAfter = (firstErrPos + 2) & 1;
+
+                // First, check if this is a transpose and not the first delete
+                if (firstErrPos < currentLength - 3 // not near end
+                        && chirality.Get(firstErrPos) != chi // this position has wrong chirality
+                        && chirality.Get(firstErrPos+1) != chiNext // next position ALSO has wrong chirality
+                        && chirality.Get(firstErrPos+2) == chiAfter // but after that it's ok
+                ) {
+                    // Swap these character
+                    codes.Swap(firstErrPos, firstErrPos + 1);
+                    chirality.Swap(firstErrPos, firstErrPos + 1);
+                    transposes.Push(firstErrPos);
+                    return tryAgain;
+
+                }
+
+                // looks like a delete
                 codes.InsertAt(firstErrPos, 0);
                 chirality.InsertAt(firstErrPos, chi);
                 transposes.Push(firstErrPos);
@@ -378,7 +396,7 @@ public class MultiCoder {
             }
         }
 
-        for (var tries = 0; tries < 12; tries++)
+        for (var tries = 0; tries < expectedCodeLength; tries++)
         {
             if (RepairCodesAndChirality(expectedCodeLength, codes, chirality, transposes))
             {

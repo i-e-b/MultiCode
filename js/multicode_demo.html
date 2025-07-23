@@ -565,6 +565,26 @@ function repairCodesAndChirality(codes, chirality, transposes) {
       }
     } else {
       let chi = firstErrPos & 1;
+      let chiNext = (firstErrPos+1) & 1;
+      let chi3rd = (firstErrPos+2) & 1;
+      // First, check if this is a transpose and not the first delete
+      if (firstErrPos < currentLength - 2 && // not at end
+          chirality[firstErrPos] != chi && // this position has wrong chirality
+          chirality[firstErrPos+1] != chiNext && // next position ALSO has wrong chirality
+          chirality[firstErrPos+2] == chi3rd ){ // but after that it's ok
+        log('Chirality error at ' + firstErrPos + " (short)");
+        let t1 = codes[firstErrPos];
+        codes[firstErrPos] = codes[firstErrPos + 1];
+        codes[firstErrPos + 1] = t1;
+
+        let t2 = chirality[firstErrPos];
+        chirality[firstErrPos] = chirality[firstErrPos + 1];
+        chirality[firstErrPos + 1] = t2;
+
+        if (transposes && transposes.push) transposes.push(firstErrPos);
+        return tryAgain;
+      }
+      // looks like a delete
       log('adding ' + chi + ' before ' + firstErrPos);
       codes.splice(firstErrPos, 0, 0);
       chirality.splice(firstErrPos, 0, chi);

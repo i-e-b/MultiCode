@@ -909,7 +909,8 @@ int mc_FindFirstChiralityError(FlexArray chirality) {
     return -1;
 }
 
-/** */
+/** Try to find and repair a single chirality error.
+ * This is the core of the odd/even code repairs. */
 int mc_RepairCodesAndChirality(int expectedCodeLength,
                                FlexArray codes, FlexArray chirality, FlexArray transposes) {
     const int tryAgain  = 0;
@@ -955,6 +956,23 @@ int mc_RepairCodesAndChirality(int expectedCodeLength,
             }
         } else {
             int chi = firstErrPos & 1;
+            int chiNext = (firstErrPos+1) & 1;
+            int chi3rd = (firstErrPos+2) & 1;
+            // First, check if this is a transpose and not the first delete
+            if (firstErrPos < currentLength - 3 // not near end
+                && fa_Get(chirality, firstErrPos) != chi // this position has wrong chirality
+                && fa_Get(chirality, firstErrPos+1) != chiNext // next position ALSO has wrong chirality
+                && fa_Get(chirality, firstErrPos+2) == chi3rd // but after that it's ok
+                ) {
+                // Swap these character
+                fa_Swap(codes, firstErrPos, firstErrPos + 1);
+                fa_Swap(chirality, firstErrPos, firstErrPos + 1);
+                fa_Push(transposes, firstErrPos);
+                return tryAgain;
+
+            }
+
+            // looks like a delete
             fa_InsertAt(codes, firstErrPos, 0);
             fa_InsertAt(chirality, firstErrPos, chi);
             fa_Push(transposes, firstErrPos);
