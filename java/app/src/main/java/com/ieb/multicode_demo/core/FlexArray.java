@@ -29,6 +29,15 @@ class FlexArray {
     }
 
     /**
+     * Create an empty array with given storage space
+     * @param space free space to expand into
+     * @return new flex array
+     */
+    public static FlexArray EmptyWithStorage(int space){
+        return new FlexArray(0, space);
+    }
+
+    /**
      * Create a new FlexArray with a single '1' value stored
      * @return new flex array
      */
@@ -359,9 +368,10 @@ class FlexArray {
      */
     private void Grow()
     {
+        var oldSize = _storeSize;
         _storeSize *= 2;
         var newStore = ZeroArray(_storeSize);
-        for (int i = 0; i < _length; i++)
+        for (int i = 0; i < oldSize; i++)
         {
             newStore[i] = _storage[i];
         }

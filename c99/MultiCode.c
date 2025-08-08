@@ -117,6 +117,7 @@ void fa_Grow(FlexArray* reference) {
 
     if (this == NULL || this->_storage == NULL) return;
 
+    int oldStoreSize = this->_storeSize;
     this->_storeSize *= 2;
     int* newStore = fa_ZeroArray(this->_storeSize);
 
@@ -125,7 +126,7 @@ void fa_Grow(FlexArray* reference) {
         return;
     }
 
-    for (int i = 0; i < this->_length; i++) {
+    for (int i = 0; i < oldStoreSize; i++) {
         newStore[i] = this->_storage[i];
     }
 
@@ -912,11 +913,11 @@ int mc_FindFirstChiralityError(FlexArray chirality) {
 /** Try to find and repair a single chirality error.
  * This is the core of the odd/even code repairs. */
 int mc_RepairCodesAndChirality(int expectedCodeLength,
-                               FlexArray codes, FlexArray chirality, FlexArray transposes) {
+                               FlexArray codes, FlexArray chirality) {
     const int tryAgain  = 0;
     const int completed = -1;
 
-    if (codes == NULL || chirality == NULL || transposes == NULL) return completed;
+    if (codes == NULL || chirality == NULL) return completed;
 
     if (fa_Length(codes) != fa_Length(chirality)) {
         // ERROR in code/chirality code
@@ -948,11 +949,9 @@ int mc_RepairCodesAndChirality(int expectedCodeLength,
                 // don't add a wrong chi at the end if we're off-by-one
                 fa_AddStart(codes, 0);
                 fa_AddStart(chirality, 0);
-                fa_Push(transposes, 0);
             } else {
                 fa_Push(codes, 0);
                 fa_Push(chirality, chi);
-                fa_Push(transposes, currentLength);
             }
         } else {
             int chi = firstErrPos & 1;
@@ -967,7 +966,6 @@ int mc_RepairCodesAndChirality(int expectedCodeLength,
                 // Swap these character
                 fa_Swap(codes, firstErrPos, firstErrPos + 1);
                 fa_Swap(chirality, firstErrPos, firstErrPos + 1);
-                fa_Push(transposes, firstErrPos);
                 return tryAgain;
 
             }
@@ -975,7 +973,6 @@ int mc_RepairCodesAndChirality(int expectedCodeLength,
             // looks like a delete
             fa_InsertAt(codes, firstErrPos, 0);
             fa_InsertAt(chirality, firstErrPos, chi);
-            fa_Push(transposes, firstErrPos);
         }
 
         return tryAgain;
@@ -996,7 +993,6 @@ int mc_RepairCodesAndChirality(int expectedCodeLength,
         fa_DeleteAt(codes, firstErrPos);
         fa_DeleteAt(chirality, firstErrPos);
 
-        fa_Push(transposes, firstErrPos);
         return tryAgain;
     }
 
@@ -1012,7 +1008,6 @@ int mc_RepairCodesAndChirality(int expectedCodeLength,
 
         fa_Set(chirality, firstErrPos, 1 - fa_Get(chirality, firstErrPos));
 
-        fa_Push(transposes, firstErrPos);
         return tryAgain;
     }
 
@@ -1020,11 +1015,10 @@ int mc_RepairCodesAndChirality(int expectedCodeLength,
     fa_Swap(codes, firstErrPos, firstErrPos + 1);
     fa_Swap(chirality, firstErrPos, firstErrPos + 1);
 
-    fa_Push(transposes, firstErrPos);
     return tryAgain;
 }
 
-FlexArray mc_DecodeDisplay(int expectedCodeLength, const char* input, FlexArray transposes) {
+FlexArray mc_DecodeDisplay(int expectedCodeLength, const char* input) {
     if (input == NULL || expectedCodeLength < 1) return NULL;
     int validCharCount = 0;
     int safetyLimit    = expectedCodeLength * 4;
@@ -1054,8 +1048,8 @@ FlexArray mc_DecodeDisplay(int expectedCodeLength, const char* input, FlexArray 
     int charCountMismatch = expectedCodeLength - validCharCount;
 
     // set up arrays
-    FlexArray codes     = fa_BySize(0);
-    FlexArray chirality = fa_BySize(0);
+    FlexArray codes     = fa_Create(0, validCharCount+16);
+    FlexArray chirality = fa_Create(0, validCharCount+16);
 
     if (codes == NULL || chirality == NULL) {
         fa_Release(&codes);
@@ -1102,7 +1096,7 @@ FlexArray mc_DecodeDisplay(int expectedCodeLength, const char* input, FlexArray 
     }
 
     for (int tries = 0; tries < expectedCodeLength; tries++) {
-        if (mc_RepairCodesAndChirality(expectedCodeLength, codes, chirality, transposes)) {
+        if (mc_RepairCodesAndChirality(expectedCodeLength, codes, chirality)) {
             fa_Release(&chirality);
             return codes;
         }
@@ -1211,10 +1205,8 @@ char* MultiCode_Encode(void* source, int sourceLength, int correctionSymbols) {
  * @return pointer to recovered data, or NULL on failure. Length is 'dataLength'. Free this after use
  */
 void* MultiCode_Decode(char* code, int dataLength, int correctionSymbols) {
-    FlexArray transposes = fa_BySize(0);
-
     int expectedCodeLength = (dataLength * 2) + correctionSymbols;
-    FlexArray cleanInput   = mc_DecodeDisplay(expectedCodeLength, code, transposes);
+    FlexArray cleanInput   = mc_DecodeDisplay(expectedCodeLength, code);
 
     if (fa_Length(cleanInput) < expectedCodeLength) // Input too short
     {
@@ -1226,8 +1218,6 @@ void* MultiCode_Decode(char* code, int dataLength, int correctionSymbols) {
     {
         return NULL;
     }
-
-    fa_Release(&transposes);
 
     FlexArray decoded = mc_TryHardDecode(cleanInput, correctionSymbols, fa_Length(cleanInput));
 

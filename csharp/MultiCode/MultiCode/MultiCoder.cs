@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
 // ReSharper disable ForCanBeConvertedToForeach
@@ -21,8 +22,7 @@ public static class MultiCoder
         // Convert from bytes to nybbles
         var src = FlexArray.Fixed(data.Length * 2);
         int j   = 0;
-        for (int i = 0; i < data.Length; i++)
-        {
+        for (int i = 0; i < data.Length; i++) {
             var upper = (data[i] >> 4) & 0x0F;
             var lower = data[i] & 0x0F;
 
@@ -48,36 +48,32 @@ public static class MultiCoder
     /// <param name="correctionSymbols">number of extra bytes added to original data</param>
     public static byte[] Decode(string code, int dataLength, int correctionSymbols)
     {
-        var transposes = FlexArray.BySize(0);
-
         var expectedCodeLength = (dataLength * 2) + correctionSymbols;
-        var cleanInput         = DecodeDisplay(expectedCodeLength, code, transposes);
+        var cleanInput         = DecodeDisplay(expectedCodeLength, code);
 
-        if (cleanInput.Length() < expectedCodeLength) // Input too short
-        {
+        Console.WriteLine(cleanInput.ToString());
+
+        // Input too short
+        if (cleanInput.Length() < expectedCodeLength) {
             cleanInput.Release();
             return [];
         }
 
-        if (cleanInput.Length() > expectedCodeLength) // Input too long
-        {
+        // Input too long
+        if (cleanInput.Length() > expectedCodeLength) {
             cleanInput.Release();
             return [];
         }
-
-        transposes.Release();
 
         var decoded = TryHardDecode(cleanInput, correctionSymbols, cleanInput.Length());
 
-        if (decoded.Ok)
-        {
+        if (decoded.Ok) {
             // remove error correction symbols
             for (var i = 0; i < correctionSymbols; i++) decoded.Result?.Pop();
 
             // decoded data is nybbles, convert back to bytes
             var final = new byte[(decoded.Result?.Length()??0) / 2];
-            for (int i = 0; i < final.Length; i++)
-            {
+            for (int i = 0; i < final.Length; i++) {
                 var upper = (decoded.Result?.PopFirst()??0) << 4;
                 var lower = decoded.Result?.PopFirst()??0;
                 final[i] = (byte)(upper + lower);
@@ -138,8 +134,7 @@ public static class MultiCoder
     /// <summary> Case changes to improve letter/number distinction </summary>
     private static char CaseChanges(char inp)
     {
-        switch (inp)
-        {
+        switch (inp) {
             case 'B': return 'b';
             case 'Q': return 'q';
             case 'S': return 's';
@@ -156,8 +151,7 @@ public static class MultiCoder
     /// </summary>
     private static int IndexOf(char[] src, char target)
     {
-        for (int i = 0; i < src.Length; i++)
-        {
+        for (int i = 0; i < src.Length; i++) {
             if (src[i] == target) return i;
         }
 
@@ -167,11 +161,11 @@ public static class MultiCoder
     /// <summary>
     /// Message value, and message output position to encoded character
     /// </summary>
-    private static char EncodeDisplay(int number, int position)
+    private static char EncodeDisplay(int symbol, int position)
     {
-        if (number < 0 || number > 15) return '~';
-        if ((position & 1) == 0) return OddSet[number];
-        return EvenSet[number];
+        if (symbol < 0 || symbol > 15) return '~';
+        if ((position & 1) == 0) return OddSet[symbol];
+        return EvenSet[symbol];
     }
 
     /// <summary>
@@ -199,8 +193,7 @@ public static class MultiCoder
     /// </summary>
     private static int FindFirstChiralityError(FlexArray chirality)
     {
-        for (var position = 0; position < chirality.Length(); position++)
-        {
+        for (var position = 0; position < chirality.Length(); position++) {
             var expected = position & 1;
             if (chirality.Get(position) != expected) return position;
         }
@@ -208,8 +201,12 @@ public static class MultiCoder
         return -1;
     }
 
+    /// <summary>
+    /// Try to repair errors in the input code that can be
+    /// detected with chirality
+    /// </summary>
     private static bool RepairCodesAndChirality(int expectedCodeLength,
-        FlexArray codes, FlexArray chirality, FlexArray transposes)
+        FlexArray codes, FlexArray chirality)
     {
         const bool tryAgain  = false;
         const bool completed = true;
@@ -250,13 +247,11 @@ public static class MultiCoder
                     // don't add a wrong chi at the end if we're off-by-one
                     codes.AddStart(0);
                     chirality.AddStart(0);
-                    transposes.Push(0);
                 }
                 else
                 {
                     codes.Push(0);
                     chirality.Push(chi);
-                    transposes.Push(currentLength);
                 }
             }
             else
@@ -274,7 +269,6 @@ public static class MultiCoder
                     // Swap these character
                     codes.Swap(firstErrPos, firstErrPos + 1);
                     chirality.Swap(firstErrPos, firstErrPos + 1);
-                    transposes.Push(firstErrPos);
                     return tryAgain;
 
                 }
@@ -282,7 +276,6 @@ public static class MultiCoder
                 // looks like a delete
                 codes.InsertAt(firstErrPos, 0);
                 chirality.InsertAt(firstErrPos, chi);
-                transposes.Push(firstErrPos);
             }
 
             return tryAgain;
@@ -306,7 +299,6 @@ public static class MultiCoder
             codes.DeleteAt(firstErrPos);
             chirality.DeleteAt(firstErrPos);
 
-            transposes.Push(firstErrPos);
             return tryAgain;
         }
 
@@ -324,7 +316,6 @@ public static class MultiCoder
 
             chirality.Set(firstErrPos, 1 - chirality.Get(firstErrPos));
 
-            transposes.Push(firstErrPos);
             return tryAgain;
         }
 
@@ -332,23 +323,23 @@ public static class MultiCoder
         codes.Swap(firstErrPos, firstErrPos + 1);
         chirality.Swap(firstErrPos, firstErrPos + 1);
 
-        transposes.Push(firstErrPos);
         return tryAgain;
     }
 
-    private static FlexArray DecodeDisplay(int expectedCodeLength, string input, FlexArray transposes)
+    /// <summary>
+    /// Try to decode a string input into a symbol array
+    /// </summary>
+    private static FlexArray DecodeDisplay(int expectedCodeLength, string input)
     {
-        var codes          = FlexArray.BySize(0);
-        var chirality      = FlexArray.BySize(0);
         var validCharCount = 0;
 
         // Run filters first, to get the number of 'correct' characters.
         // We could extend this to store the location of unexpected chars to improve the next loop.
-        for (var i = 0; i < input.Length; i++)
-        {
+        for (var i = 0; i < input.Length; i++) {
             var src = char.ToUpperInvariant(input[i]);
             if (IsSpace(src)) continue; // skip spaces
             src = CaseChanges(src); // Q->q, S->s, B->b
+            src = Correction(src); // fix for anticipated transcription errors
 
             var oddIdx  = IndexOf(OddSet, src);
             var evenIdx = IndexOf(EvenSet, src);
@@ -358,9 +349,11 @@ public static class MultiCoder
         // negative = too many chars. Positive = too few.
         var charCountMismatch = expectedCodeLength - validCharCount;
 
+        var codes     = FlexArray.EmptyWithStorage(validCharCount);
+        var chirality = FlexArray.EmptyWithStorage(validCharCount);
+
         var nextChir = 0;
-        for (var i = 0; i < input.Length; i++)
-        {
+        for (var i = 0; i < input.Length; i++) {
             var src = char.ToUpperInvariant(input[i]); // make upper-case
 
             if (IsSpace(src)) continue; // skip spaces
@@ -371,46 +364,34 @@ public static class MultiCoder
             var oddIdx  = IndexOf(OddSet, src);
             var evenIdx = IndexOf(EvenSet, src);
 
-            if (oddIdx < 0 && evenIdx < 0)
-            {
+            if (oddIdx < 0 && evenIdx < 0) {
                 // Broken character, maybe insert dummy.
-                if (charCountMismatch > 0)
-                {
+                if (charCountMismatch > 0) {
                     codes.Push(0);
                     chirality.Push(nextChir);
                     nextChir = 1 - nextChir;
                     charCountMismatch--;
-                }
-                else
-                {
+                } else {
                     charCountMismatch++;
                 }
-            }
-            else if (oddIdx >= 0 && evenIdx >= 0)
-            {
+            } else if (oddIdx >= 0 && evenIdx >= 0) {
                 // Should never happen!
                 codes.Release();
                 chirality.Release();
                 return FlexArray.Fixed(0);
-            }
-            else if (oddIdx >= 0)
-            {
+            } else if (oddIdx >= 0) {
                 codes.Push(oddIdx);
                 chirality.Push(0);
                 nextChir = 1;
-            }
-            else
-            {
+            } else {
                 codes.Push(evenIdx);
                 chirality.Push(1);
                 nextChir = 0;
             }
         }
 
-        for (var tries = 0; tries < expectedCodeLength; tries++)
-        {
-            if (RepairCodesAndChirality(expectedCodeLength, codes, chirality, transposes))
-            {
+        for (var tries = 0; tries < expectedCodeLength; tries++) {
+            if (RepairCodesAndChirality(expectedCodeLength, codes, chirality)) {
                 chirality.Release();
                 return codes;
             }
@@ -477,8 +458,7 @@ public static class MultiCoder
 
         var erases = expectedLength - msg.Length();
         var synd   = ReedSolomon.CalcSyndromes(msg, sym);
-        if (synd.AllZero())
-        {
+        if (synd.AllZero()) {
             //log('no errors found');
             result.Ok = true;
             synd.Release();
@@ -486,8 +466,7 @@ public static class MultiCoder
         }
 
         var errPoly = ReedSolomon.ErrorLocatorPoly(synd, sym, erases);
-        if (errPoly.Length() - 1 - erases > sym)
-        {
+        if (errPoly.Length() - 1 - erases > sym) {
             result.Errs = true;
             result.Info = "too many errors (A)";
             errPoly.Release();
@@ -497,8 +476,7 @@ public static class MultiCoder
 
         errPoly.Reverse();
         var errorPositions = ReedSolomon.FindErrors(errPoly, msg.Length());
-        if (errorPositions.Length() < 1)
-        {
+        if (errorPositions.Length() < 1) {
             result.Errs = true;
             result.Info = "too many errors (B)";
             errorPositions.Release();
@@ -517,8 +495,7 @@ public static class MultiCoder
 
         // recheck result
         var synd2 = ReedSolomon.CalcSyndromes(result.Result, sym);
-        if (synd2.AllZero())
-        {
+        if (synd2.AllZero()) {
             //log('all errors corrected');
             synd2.Release();
             result.Ok = true;
@@ -535,7 +512,8 @@ public static class MultiCoder
         return result;
     }
 
-    private static DecodeResult TryHardDecode(FlexArray msg, int sym, int expectedLength)
+    private static DecodeResult TryHardDecode(FlexArray msg, int sym,
+        int expectedLength)
     {
         var basicDecode = RsDecode(msg, sym, expectedLength);
         if (basicDecode.Ok) return basicDecode;
@@ -545,12 +523,10 @@ public static class MultiCoder
         var end  = msg.Length();
         var half = end / 2;
         int i;
-        for (i = 0; i < half; i++)
-        {
+        for (i = 0; i < half; i++) {
             // rotate left until we run out of zeros
             var r = msg.PopFirst(); // remove and return first element
-            if (r != 0)
-            {
+            if (r != 0) {
                 msg.AddStart(r);
                 break;
             }
@@ -563,19 +539,16 @@ public static class MultiCoder
         }
 
         // undo
-        while (i > 0)
-        {
+        while (i > 0) {
             i--;
             var r = msg.Pop();
             msg.AddStart(r);
         }
 
-        for (i = 0; i < half; i++)
-        {
+        for (i = 0; i < half; i++) {
             // rotate right until we run out of zeros
             var r = msg.Pop();
-            if (r != 0)
-            {
+            if (r != 0) {
                 msg.Push(r);
                 break;
             }

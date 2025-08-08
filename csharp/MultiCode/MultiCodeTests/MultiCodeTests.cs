@@ -1,4 +1,5 @@
-﻿using MultiCode;
+﻿using System.Text;
+using MultiCode;
 using NUnit.Framework;
 
 namespace MultiCodeTests;
@@ -6,6 +7,24 @@ namespace MultiCodeTests;
 [TestFixture]
 public class MultiCodeTests
 {
+
+    [Test]
+    public void stable_output_for_input()
+    {
+        var original = "Hello, world!\0";
+        var data     = Encoding.UTF8.GetBytes(original);
+        var length   = data.Length;
+
+        Console.WriteLine(Convert.ToHexString(data));
+
+        var result   = MultiCoder.Encode(data, 8);
+
+        Console.WriteLine(result);
+
+        var recovered = MultiCoder.Decode(result, length, 8);
+
+        Assert.That(recovered, Is.EqualTo(data).AsCollection);
+    }
 
     [Test]
     [TestCase("BC7DE6FD","Ns 9T-YF ZT-14 JP-Js")]

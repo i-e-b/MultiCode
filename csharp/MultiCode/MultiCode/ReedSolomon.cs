@@ -124,16 +124,16 @@ internal static class ReedSolomon
     /// Try to correct errors in the message using the Forney algorithm
     /// </summary>
     public static FlexArray CorrectErrors(FlexArray msg, FlexArray synd, FlexArray pos) {
-        var len      = msg.Length();
+        var length = msg.Length();
 
         var coeffPos = FlexArray.BySize(0);
         var chi      = FlexArray.BySize(0);
         var tmp      = FlexArray.BySize(0);
-        var e        = FlexArray.BySize(len);
+        var e        = FlexArray.BySize(length);
 
         synd.Reverse();
         for (var i = 0; i < pos.Length(); i++) {
-            coeffPos.Push(len - 1 - pos.Get(i));
+            coeffPos.Push(length - 1 - pos.Get(i));
         }
 
         var errLoc  = DataErrorLocatorPoly(coeffPos);

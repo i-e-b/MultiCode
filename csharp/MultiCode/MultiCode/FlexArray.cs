@@ -28,6 +28,14 @@ public class FlexArray
     }
 
     /// <summary>
+    /// Create an empty array with given storage space
+    /// </summary>
+    public static FlexArray EmptyWithStorage(int space)
+    {
+        return new FlexArray(0, space);
+    }
+
+    /// <summary>
     /// Create a zero-filled array of a given length
     /// </summary>
     public static FlexArray BySize(int length)
@@ -247,15 +255,13 @@ public class FlexArray
     /// </summary>
     public int PopFirst()
     {
-        if (_length > 0)
-        {
-            var r = _storage[_offset];
-            _offset++;
-            _length--;
-            return r;
-        }
+        if (_length <= 0) return 0;
 
-        return 0;
+        var r = _storage[_offset];
+        _offset++;
+        _length--;
+        return r;
+
     }
 
     /// <summary>
@@ -376,9 +382,10 @@ public class FlexArray
     /// </summary>
     private void Grow()
     {
+        var oldSize = _storeSize;
         _storeSize *= 2;
         var newStore = ZeroArray(_storeSize);
-        for (int i = 0; i < _length; i++)
+        for (int i = 0; i < oldSize; i++)
         {
             newStore[i] = _storage[i];
         }

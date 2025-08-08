@@ -45,10 +45,8 @@ public class MultiCoder {
      */
     public static byte[] Decode(String code, int dataLength, int correctionSymbols)
     {
-        var transposes = FlexArray.BySize(0);
-
         var expectedCodeLength = (dataLength * 2) + correctionSymbols;
-        var cleanInput         = DecodeDisplay(expectedCodeLength, code, transposes);
+        var cleanInput         = DecodeDisplay(expectedCodeLength, code);
 
         if (cleanInput.Length() < expectedCodeLength) // Input too short
         {
@@ -59,8 +57,6 @@ public class MultiCoder {
         {
             return new byte[0];
         }
-
-        transposes.Release();
 
         var decoded = TryHardDecode(cleanInput, correctionSymbols, cleanInput.Length());
 
@@ -200,7 +196,7 @@ public class MultiCoder {
     }
 
     private static boolean RepairCodesAndChirality(int expectedCodeLength,
-                                                FlexArray codes, FlexArray chirality, FlexArray transposes)
+                                                FlexArray codes, FlexArray chirality)
     {
         final boolean tryAgain  = false;
         final boolean completed = true;
@@ -240,13 +236,11 @@ public class MultiCoder {
                     // don't add a wrong chi at the end if we're off-by-one
                     codes.AddStart(0);
                     chirality.AddStart(0);
-                    transposes.Push(0);
                 }
                 else
                 {
                     codes.Push(0);
                     chirality.Push(chi);
-                    transposes.Push(currentLength);
                 }
             }
             else
@@ -264,7 +258,6 @@ public class MultiCoder {
                     // Swap these character
                     codes.Swap(firstErrPos, firstErrPos + 1);
                     chirality.Swap(firstErrPos, firstErrPos + 1);
-                    transposes.Push(firstErrPos);
                     return tryAgain;
 
                 }
@@ -272,7 +265,6 @@ public class MultiCoder {
                 // looks like a delete
                 codes.InsertAt(firstErrPos, 0);
                 chirality.InsertAt(firstErrPos, chi);
-                transposes.Push(firstErrPos);
             }
 
             return tryAgain;
@@ -295,7 +287,6 @@ public class MultiCoder {
             codes.DeleteAt(firstErrPos);
             chirality.DeleteAt(firstErrPos);
 
-            transposes.Push(firstErrPos);
             return tryAgain;
         }
 
@@ -313,7 +304,6 @@ public class MultiCoder {
 
             chirality.Set(firstErrPos, 1 - chirality.Get(firstErrPos));
 
-            transposes.Push(firstErrPos);
             return tryAgain;
         }
 
@@ -321,14 +311,11 @@ public class MultiCoder {
         codes.Swap(firstErrPos, firstErrPos + 1);
         chirality.Swap(firstErrPos, firstErrPos + 1);
 
-        transposes.Push(firstErrPos);
         return tryAgain;
     }
 
-    private static FlexArray DecodeDisplay(int expectedCodeLength, String input, FlexArray transposes)
+    private static FlexArray DecodeDisplay(int expectedCodeLength, String input)
     {
-        var codes          = FlexArray.BySize(0);
-        var chirality      = FlexArray.BySize(0);
         var validCharCount = 0;
 
         // Run filters first, to get the number of 'correct' characters.
@@ -346,6 +333,9 @@ public class MultiCoder {
 
         // negative = too many chars. Positive = too few.
         var charCountMismatch = expectedCodeLength - validCharCount;
+
+        var codes = FlexArray.EmptyWithStorage(validCharCount);
+        var chirality = FlexArray.EmptyWithStorage(validCharCount);
 
         var nextChir = 0;
         for (var i = 0; i < input.length(); i++)
@@ -398,7 +388,7 @@ public class MultiCoder {
 
         for (var tries = 0; tries < expectedCodeLength; tries++)
         {
-            if (RepairCodesAndChirality(expectedCodeLength, codes, chirality, transposes))
+            if (RepairCodesAndChirality(expectedCodeLength, codes, chirality))
             {
                 chirality.Release();
                 return codes;
