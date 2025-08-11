@@ -240,9 +240,10 @@ public static class MultiCoder
             if (firstErrPos < 0)
             {
                 // error is at the end
-                var chi  = currentLength & 1;
-                var diff = expectedCodeLength - currentLength;
-                if (diff == 1 && chi != 1)
+                var chi    = currentLength & 1;
+                var endChi = expectedCodeLength & 1;
+                var diff   = expectedCodeLength - currentLength;
+                if (diff == 1 && chi == endChi)
                 {
                     // don't add a wrong chi at the end if we're off-by-one
                     codes.AddStart(0);

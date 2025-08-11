@@ -228,14 +228,12 @@ int fa_Pop(FlexArray this) {
 /** Remove first item, returning the removed value */
 int fa_PopFirst(FlexArray this) {
     if (this == NULL) return 0;
-    if (this->_length > 0) {
-        int r = this->_storage[this->_offset];
-        this->_offset++;
-        this->_length--;
-        return r;
-    }
+    if (this->_length < 1) return 0;
 
-    return 0;
+    int r = this->_storage[this->_offset];
+    this->_offset++;
+    this->_length--;
+    return r;
 }
 
 /** Swap values at two indices, in-place */
@@ -398,27 +396,27 @@ int g16_AddSub(int a, int b) {
     return (a ^ b) & 0x0f;
 }
 
-/** Multiply a and b */
+/** Multiply: a * b */
 int g16_Mul(int a, int b) {
     if (!g16_created) g16_CreateTables();
     if (a == 0 || b == 0) return 0;
     return g16_exp[(g16_log[a] + g16_log[b]) % 15];
 }
 
-/** Divide a by b */
+/** Divide: a / b */
 int g16_Div(int a, int b) {
     if (!g16_created) g16_CreateTables();
     if (a == 0 || b == 0) return 0;
     return g16_exp[(g16_log[a] + 15 - g16_log[b]) % 15];
 }
 
-/** Raise n to power of p */
+/** Power: n^p */
 int g16_Pow(int n, int p) {
     if (!g16_created) g16_CreateTables();
     return g16_exp[(g16_log[n] * p) % 15];
 }
 
-/** Get multiplicative inverse of n */
+/** Get multiplicative inverse: 1/n */
 int g16_Inverse(int n) {
     if (!g16_created) g16_CreateTables();
     return g16_exp[15 - g16_log[n]];
@@ -944,8 +942,9 @@ int mc_RepairCodesAndChirality(int expectedCodeLength,
         if (firstErrPos < 0) {
             // error is at the end
             int chi  = currentLength & 1;
+            int endChi = expectedCodeLength & 1;
             int diff = expectedCodeLength - currentLength;
-            if (diff == 1 && chi != 1) {
+            if (diff == 1 && chi == endChi) {
                 // don't add a wrong chi at the end if we're off-by-one
                 fa_AddStart(codes, 0);
                 fa_AddStart(chirality, 0);
@@ -953,27 +952,28 @@ int mc_RepairCodesAndChirality(int expectedCodeLength,
                 fa_Push(codes, 0);
                 fa_Push(chirality, chi);
             }
-        } else {
-            int chi = firstErrPos & 1;
-            int chiNext = (firstErrPos+1) & 1;
-            int chi3rd = (firstErrPos+2) & 1;
-            // First, check if this is a transpose and not the first delete
-            if (firstErrPos < currentLength - 3 // not near end
-                && fa_Get(chirality, firstErrPos) != chi // this position has wrong chirality
-                && fa_Get(chirality, firstErrPos+1) != chiNext // next position ALSO has wrong chirality
-                && fa_Get(chirality, firstErrPos+2) == chi3rd // but after that it's ok
-                ) {
-                // Swap these character
-                fa_Swap(codes, firstErrPos, firstErrPos + 1);
-                fa_Swap(chirality, firstErrPos, firstErrPos + 1);
-                return tryAgain;
-
-            }
-
-            // looks like a delete
-            fa_InsertAt(codes, firstErrPos, 0);
-            fa_InsertAt(chirality, firstErrPos, chi);
+            return tryAgain;
         }
+
+        // error not at end
+        int chi     = firstErrPos & 1;
+        int chiNext = (firstErrPos+1) & 1;
+        int chi3rd  = (firstErrPos+2) & 1;
+        // First, check if this is a transpose and not the first delete
+        if (firstErrPos < currentLength - 3 // not near end
+            && fa_Get(chirality, firstErrPos) != chi // this position has wrong chirality
+            && fa_Get(chirality, firstErrPos+1) != chiNext // next position ALSO has wrong chirality
+            && fa_Get(chirality, firstErrPos+2) == chi3rd // but after that it's ok
+        ) {
+            // Swap these character
+            fa_Swap(codes, firstErrPos, firstErrPos + 1);
+            fa_Swap(chirality, firstErrPos, firstErrPos + 1);
+            return tryAgain;
+        }
+
+        // looks like a delete
+        fa_InsertAt(codes, firstErrPos, 0);
+        fa_InsertAt(chirality, firstErrPos, chi);
 
         return tryAgain;
     }
@@ -988,7 +988,7 @@ int mc_RepairCodesAndChirality(int expectedCodeLength,
             return tryAgain;
         }
 
-        // value and chirality at error position
+        // Delete value and chirality at error position
         if (firstErrPos < 0) firstErrPos = currentLength - 1;
         fa_DeleteAt(codes, firstErrPos);
         fa_DeleteAt(chirality, firstErrPos);
@@ -1018,6 +1018,7 @@ int mc_RepairCodesAndChirality(int expectedCodeLength,
     return tryAgain;
 }
 
+/** Try to decode a string input, and correct transpositions */
 FlexArray mc_DecodeDisplay(int expectedCodeLength, const char* input) {
     if (input == NULL || expectedCodeLength < 1) return NULL;
     int validCharCount = 0;
@@ -1037,6 +1038,7 @@ FlexArray mc_DecodeDisplay(int expectedCodeLength, const char* input) {
 
         if (src >= 'a') src = (char)(src-upperCase);
         src = mc_CaseChanges(src); // Q->q, S->s, B->b
+        src = mc_Correction(src); // fix for anticipated transcription errors
 
         int oddIdx  = mc_IndexOf(OddSet, src);
         int evenIdx = mc_IndexOf(EvenSet, src);
@@ -1096,10 +1098,7 @@ FlexArray mc_DecodeDisplay(int expectedCodeLength, const char* input) {
     }
 
     for (int tries = 0; tries < expectedCodeLength; tries++) {
-        if (mc_RepairCodesAndChirality(expectedCodeLength, codes, chirality)) {
-            fa_Release(&chirality);
-            return codes;
-        }
+        if (mc_RepairCodesAndChirality(expectedCodeLength, codes, chirality)) break;
     }
 
     fa_Release(&chirality);
@@ -1216,6 +1215,7 @@ void* MultiCode_Decode(char* code, int dataLength, int correctionSymbols) {
 
     if (fa_Length(cleanInput) > expectedCodeLength) // Input too long
     {
+        fa_Release(&cleanInput);
         return NULL;
     }
 

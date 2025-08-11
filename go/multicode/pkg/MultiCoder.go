@@ -215,8 +215,9 @@ func repairCodesAndChirality(expectedCodeLength int, codes, chirality *flexArray
 		if firstErrPos < 0 {
 			// error is at the end
 			var chi = currentLength & 1
+			var endChi = expectedCodeLength & 1
 			var diff = expectedCodeLength - currentLength
-			if diff == 1 && chi != 1 {
+			if diff == 1 && chi == endChi {
 				// don't add a wrong chi at the end if we're off-by-one
 				codes.addStart(0)
 				chirality.addStart(0)
