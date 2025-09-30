@@ -8,6 +8,8 @@ to be detected and possibly corrected.
 
 This results in a highly resilient code which is very likely to work.
 
+The prototype of this is at https://jsfiddle.net/i_e_b/x1vru8bc/  where you can play around with it.
+
 ## Design
 
 Before passing to a FEC (in this case, Reed-Solomon), we look for 
@@ -142,10 +144,6 @@ We could try having fixed guard codes at the start and end, but this is not impl
   </tr>
 </table>
 
-## The wierd implementation
+## The weird implementation
 
 The various implementations are not generally idiomatic for their language. They have been written to be portable with minimal effort -- so they basically only rely on being able to create arrays, and the rest comes packaged.
-
-## JsFiddle
-
-The prototype of this is at https://jsfiddle.net/i_e_b/x1vru8bc/  where you can play around with it.
